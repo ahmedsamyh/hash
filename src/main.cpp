@@ -2,300 +2,8 @@
 #include <stdcpp.hpp>
 #include <stack>
 #include <filesystem>
+#include <unordered_map>
 namespace fs = std::filesystem;
-
-#define compiler_error(str, ...) compiler_error_impl(FMT(str, __VA_ARGS__))
-
-void compiler_error_impl(const std::string& err_msg){
-  fprint(std::cerr, "ERROR: {}\n", err_msg);
-  exit(1);
-}
-
-struct Value {
-  union Value_as {
-    int Int;
-    float Float;
-    size_t Ptr;
-    char Char;
-  } as;
-  
-  enum Type {
-    Int,
-    Float,
-    Str,
-    Char,
-    Ptr
-  } type;
-
-  Value(){};
-  Value(const Type& _type){
-    type = _type;
-  }
-
-  std::string type_as_str(){
-    switch (type){
-    case Type::Int: {
-      return "int";
-    } break;
-    case Type::Float: { 
-      return "float";
-    } break;
-    case Type::Str: { 
-      return "str";
-    } break;
-    case Type::Char: { 
-      return "char";
-    } break;
-    case Type::Ptr: { 
-      return "ptr";
-    } break;
-    default: {
-      UNREACHABLE();
-    } break;
-    }
-    return "Invalid Type";
-  }
-
-  std::string as_str(bool with_type=false){
-    std::string res = "Invalid Value";
-    switch(type){
-    case Type::Int: {
-      res = FMT("{}", as.Int);
-    } break;
-    case Type::Float: {
-      res = FMT("{:.2f}f", as.Float);
-    } break;
-    case Type::Str: {
-      // res = FMT("\"{}\"", as.Str);
-      UNIMPLEMENTED();
-    } break;
-    case Type::Char: {
-      res = FMT("'{}'", as.Char);
-    } break;
-    case Type::Ptr: {
-      res = FMT("{:x}", as.Ptr);
-    } break;
-    default: {
-      UNREACHABLE();
-    } break;
-    }
-    if (with_type){
-      res += FMT("({})", type_as_str());
-    }
-    return res;
-  }
-};
-
-
-struct Operator {
-  enum Type{
-    Sum,
-    Sub,
-    Mult,
-    Div,
-    Mod
-  } type;
-
-  std::string as_str(){
-    switch (type){
-    case Operator::Sum: {
-      return "+";
-    } break;
-    case Operator::Sub: {
-      return "-";
-    } break;
-    case Operator::Mult: {
-      return "*";
-    } break;
-    case Operator::Div: {
-      return "/";
-    } break;
-    case Operator::Mod  : {
-      return "%";
-    } break;
-    default: {
-      UNREACHABLE();
-    } break;
-    }
-    return "Invalid Operator";
-  }
-
-};
-
-
-
-
-// Expression is 2 operands and a operator that will evaluate to some value
-// operand {optor} operand
-// eg: 2 * 3;
-struct Expression {
-  Operator optor;
-  Value a, b;
-
-  Expression(){};
-
-  Expression(const Operator::Type& optor_type, Value a, Value b){
-    set_optor(optor_type);
-    set_operands(a, b);
-  };
-
-  void set_optor(const Operator::Type& optor_type){
-    optor.type = optor_type;
-  }
-  
-  void set_operands(Value _a, Value _b){
-    a = _a;
-    b = _b;
-  }
-
-  std::string as_str(bool with_type=false){
-    return FMT("{} {} {}", a.as_str(with_type), optor.as_str(), b.as_str(with_type));
-  }
-
-  void invalid_operands(){
-    compiler_error("Invalid operands for `{}`: {}, {}", optor.as_str(), a.as_str(true), b.as_str(true));
-  }
-
-  void check_type_mismatch(){
-    if (a.type != b.type){
-      compiler_error("Type mismatch for operator `{}`: {}", optor.as_str(), as_str(true));
-    }
-  }
-
-  Value eval(){
-    // TODO: Check if sufficient operands are provided
-    // compiler_error("Insufficient operands for `{}` operator\n", optor.as_str());
-    
-    Value res;
-  
-    check_type_mismatch();
-    res.type = a.type;
-    
-    res.type = a.type;
-
-    switch (optor.type){
-    case Operator::Sum: {
-      switch (a.type){
-      case Value::Type::Int: {
-	res.as.Int = a.as.Int + b.as.Int;
-      } break;
-      case Value::Type::Float: {
-	res.as.Float = a.as.Float + b.as.Float;
-      } break;
-      case Value::Type::Str: {
-	// concat
-        // std::string c = FMT("{}{}", a.as.Str, b.as.Str);
-	// res.as.Str = c.c_str();
-	UNIMPLEMENTED();
-      } break;
-      case Value::Type::Char: {
-	invalid_operands();
-      } break;
-      case Value::Type::Ptr: {
-	res.as.Ptr = a.as.Ptr + b.as.Ptr;
-      } break;
-      default: {
-	UNREACHABLE();
-      } break;
-      }
-    } break;
-    case Operator::Sub: {
-      switch (a.type){
-      case Value::Type::Int: {
-	res.as.Int = a.as.Int - b.as.Int;
-      } break;
-      case Value::Type::Float: {
-	res.as.Float = a.as.Float - b.as.Float;
-      } break;
-      case Value::Type::Str:
-      case Value::Type::Char: {
-	invalid_operands();
-      } break;
-      case Value::Type::Ptr: {
-	res.as.Ptr = a.as.Ptr - b.as.Ptr;
-      } break;
-      default: {
-	UNREACHABLE();
-      } break;
-      }
-    } break;
-    case Operator::Mult: {
-      switch (a.type){
-      case Value::Type::Int: {
-	res.as.Int = a.as.Int * b.as.Int;
-      } break;
-      case Value::Type::Float: {
-	res.as.Float = a.as.Float * b.as.Float;
-      } break;
-      case Value::Type::Str: {
-	compiler_error("Cannot add two strings");
-      } break;
-      case Value::Type::Char: {
-	compiler_error("Cannot add two characters");
-      } break;
-      case Value::Type::Ptr: {
-	res.as.Ptr = a.as.Ptr * b.as.Ptr;
-      } break;
-      default: {
-	UNREACHABLE();
-      } break;
-      }
-    } break;
-    case Operator::Div: {
-      switch (a.type){
-      case Value::Type::Int: {
-	res.as.Int = a.as.Int / b.as.Int;
-      } break;
-      case Value::Type::Float: {
-	res.as.Float = a.as.Float / b.as.Float;
-      } break;
-      case Value::Type::Str: {
-	compiler_error("Cannot add two strings");
-      } break;
-      case Value::Type::Char: {
-	compiler_error("Cannot add two characters");
-      } break;
-      case Value::Type::Ptr: {
-	res.as.Ptr = a.as.Ptr / b.as.Ptr;
-      } break;
-      default: {
-	UNREACHABLE();
-      } break;
-      }
-    } break;
-    case Operator::Mod: {
-      switch (a.type){
-      case Value::Type::Int: {
-	res.as.Int = a.as.Int % b.as.Int;
-      } break;
-      case Value::Type::Float: {
-	compiler_error("Cannot add two strings");
-      } break;
-      case Value::Type::Str: {
-	compiler_error("Cannot add two strings");
-      } break;
-      case Value::Type::Char: {
-	compiler_error("Cannot add two characters");
-      } break;
-      case Value::Type::Ptr: {
-	compiler_error("Cannot add two strings");
-      } break;
-      default: {
-	UNREACHABLE();
-      } break;
-      }
-    } break;
-    default: {
-      UNREACHABLE();
-    } break;
-    }
-    return res;
-  }
-};
-
-struct Statement {
-  std::vector<Expression> expressions;
-};
 
 struct Loc{
   int col{0}, row{0};
@@ -307,12 +15,13 @@ struct Loc{
 };
 
 struct Token{
-  enum Type{
+  enum class Type{
     Name,
     Number,
     Open_paren,
     Close_paren,
     Semi_colon,
+    Colon,
     Comma,
     Minus,
     Plus,
@@ -347,6 +56,9 @@ struct Token{
     } break;
     case Type::Semi_colon: {
       return "Semi_colon";
+    } break;
+    case Type::Colon: {
+      return "Colon";
     } break;
     case Type::Comma: {
       return "Comma";
@@ -402,16 +114,34 @@ struct Token{
   }
 };
 
+typedef std::vector<Token> Tokens;
+
+Option<Token> pop_token(std::vector<Token>& tokens){
+  Option<Token> res;
+  if (!tokens.empty()){
+    res = tokens[0];
+    tokens.erase(tokens.begin() + 0);
+  }
+  return res;  
+}
+
+#define compiler_error(tok, str, ...) compiler_error_impl(tok, FMT(str, __VA_ARGS__))
+
+void compiler_error_impl(const Token& token, const std::string& err_msg){
+  fprint(std::cerr, "{}: ERROR: {}\n", token.loc.as_str(), err_msg);
+  exit(1);
+}
+
 #define FILE_EXT "hash"
 
-std::vector<Token> parse_source_file(const std::string& filename){
+Tokens parse_source_file(const std::string& filename){
   std::string file_ext = str::rpop_until(filename, '.');
   if (file_ext != FILE_EXT){
     fprint(std::cerr, "ERROR: Hash source files must have the extension `{}`!\n", FILE_EXT);
     exit(1);
   }
   std::string file = file::slurp_file(filename);
-  std::vector<Token> res;
+  Tokens res;
   if (file.empty()){
     print("WARNING: File {} is empty\n", filename);
     return res;
@@ -560,6 +290,11 @@ std::vector<Token> parse_source_file(const std::string& filename){
 	line = str::lremove(line, token.value.size());
 	res.push_back(token);
 	col++;
+      } else if (line[0] == ':'){
+	token.value = str::lpop(line, 1);
+	token.type = Token::Type::Colon;
+	line = str::lremove(line, token.value.size());
+	res.push_back(token);	
       } else {
 	fprint(std::cerr, "ERROR: Cannot parse `{}`\n", line[0]);
 	exit(1);
@@ -574,16 +309,242 @@ std::vector<Token> parse_source_file(const std::string& filename){
   return res;
 }
 
-void parse_tokens(std::vector<Token>& tokens){
-  for (auto& t : tokens){
-    
+enum class Keyword {
+  Func
+};
+
+
+struct Value {
+  enum class Type {
+    Int,
+    Float,
+    Ptr,
+    Char,
+    Str,
+    Bool,
+    Count
+  } type;
+
+  static inline std::unordered_map<std::string, Type> type_as_name = {
+    {"int", Type::Int},
+    {"float", Type::Float},
+    {"ptr", Type::Ptr},
+    {"char", Type::Char},
+    {"str", Type::Str},
+    {"bool", Type::Bool},    
+  };
+
+  static bool is_valid_type(const std::string& n){
+    return Value::type_as_name.contains(n);
   }
+
+};
+
+struct Block {
+  std::vector<Token> _tokens;
+
+  void collect_values(Token& curl_token, Tokens& tokens){
+    Option<Token> T;
+    do {
+      T = pop_token(tokens);
+      if (!T) {
+	compiler_error(curl_token, "Unclosed Function body");
+      }
+      Token token = T.unwrap();
+      print("Collected: `{}`\n", token.as_str());
+      if (token.type == Token::Type::Close_curl){
+	break;
+      } else {
+	_tokens.push_back(token);
+      }
+    } while (T);
+  }
+};
+
+
+struct Function {
+  std::string name;
+  std::vector<Value> args;
+  Block block;
+  Value return_value;
+  Token token;
+};
+
+std::vector<Function> functions;
+
+static std::unordered_map<std::string, Keyword> keywords = {
+  {"func",  Keyword::Func},
+};
+
+bool is_keyword(const std::string& name){
+  return keywords.contains(name);
 }
 
-void dump_tokens(std::vector<Token>& tokens){
+
+
+int parse_arguments(Token& open_paren, Tokens& tokens){
+  Option<Token> T;
+  std::vector<std::string> declared_arguments;
+  int arg_count = 0;
+  bool name_handled = false;
+  
+  do {
+    T = pop_token(tokens);
+    if (!T){
+      compiler_error(open_paren, "Unclosed parenthesis");
+    }
+    Token t = T.unwrap();
+    
+    if (t.type == Token::Type::Name){
+      bool found = false;
+      for (auto& a : declared_arguments){ if (a == t.value) { found = true; break; } }
+      if (!found){ declared_arguments.push_back(t.value); }
+      name_handled = true;
+    } else if (t.type == Token::Type::Close_paren){
+      break;
+    } else if (t.type == Token::Type::Colon){
+      if (!name_handled){
+	compiler_error(t, "Argument name is not provided");
+      }
+      name_handled=false;
+      T = pop_token(tokens);
+      if (!T){
+	// TODO: pass the token of the function
+	compiler_error(t, "Unfinished Function declaration");
+      }
+      t = T.unwrap();
+      if (!Value::is_valid_type(t.value)) {
+	compiler_error(t, "Unkown type `{}`", t.value);
+      }
+    } else if (t.type == Token::Type::Comma){
+      arg_count++;
+    } else {
+      compiler_error(t, "`{}` is unexpected here", t.value);
+    }
+    
+  } while (T);
+  return arg_count;
+}
+
+void parse_tokens(Tokens& tokens){
+  Option<Token> T;
+  Option<Token> prev;
+
+  Function current_func;
+  bool declaring_func=false;
+  
+  do {
+    T = pop_token(tokens);
+    Token token = T.unwrap();
+    
+    switch (token.type){
+    case Token::Type::Name: {
+      if (is_keyword(token.value)){
+	Keyword k = keywords[token.value];
+	switch(k){
+	case Keyword::Func:{
+	  
+	} break;
+	default:{
+	  UNREACHABLE();
+	} break;
+	}
+      }
+    } break;
+    case Token::Type::Number: {
+      UNIMPLEMENTED();
+    } break;
+    case Token::Type::Open_paren: {
+      declaring_func = true;
+      // TODO: check if the previous token was a name
+      if (!prev) {
+	compiler_error(token, "Function has no name");
+      }
+      
+      current_func.name = prev.unwrap().value;
+      int arg_count = parse_arguments(token, tokens);
+      current_func.args.resize(arg_count);
+      current_func.token = prev.unwrap();
+      // TODO: actually get the function args somehow
+      
+    } break;
+    case Token::Type::Close_paren: {
+      UNIMPLEMENTED();
+    } break;
+    case Token::Type::Semi_colon: {
+      UNIMPLEMENTED();
+    } break;
+    case Token::Type::Colon: {
+      UNIMPLEMENTED();
+    } break;
+    case Token::Type::Comma: {
+      UNIMPLEMENTED();
+    } break;
+    case Token::Type::Minus: {
+      UNIMPLEMENTED();
+    } break;
+    case Token::Type::Plus: {
+      UNIMPLEMENTED();
+    } break;
+    case Token::Type::Mult: {
+      UNIMPLEMENTED();
+    } break;
+    case Token::Type::Div: {
+      UNIMPLEMENTED();
+    } break;
+    case Token::Type::Mod: {
+      UNIMPLEMENTED();
+    } break;
+    case Token::Type::Equal: {
+      UNIMPLEMENTED();
+    } break;
+    case Token::Type::Returner: {
+      T = pop_token(tokens);
+      if (!T){
+	// TODO: pass the token of the function
+	compiler_error(token, "Unfinished Function declaration");
+      }
+      token = T.unwrap();
+      if (!Value::is_valid_type(token.value)) {
+	compiler_error(token, "Unkown type `{}`", token.value);
+      }
+    } break;
+    case Token::Type::Open_curl: {
+      if (!declaring_func){
+	compiler_error(token, "`{}` is unexpected here", token.value);
+      }
+      
+      // collect values of the func block
+      current_func.block.collect_values(token, tokens);
+    } break;
+    case Token::Type::Close_curl: {
+      UNIMPLEMENTED();
+    } break;
+    case Token::Type::D_quote: {
+      UNIMPLEMENTED();
+    } break;
+    case Token::Type::Quote: {
+      UNIMPLEMENTED();
+    } break;
+    case Token::Type::String: {
+      UNIMPLEMENTED();
+    } break;
+    case Token::Type::Char: {
+      UNIMPLEMENTED();
+    } break;
+    default: {
+      UNREACHABLE();
+    } break;
+    }
+
+    prev = T;
+  } while (T);
+}
+
+void dump_tokens(Tokens& tokens){
   print("Tokens:\n");
-  for (auto& t : tokens){
-    print("{}:{}\n", t.loc.as_str(), t.as_str());
+  for (auto& token : tokens){
+    print("{}:{}\n", token.loc.as_str(), token.as_str());
   }
 }
 
@@ -594,8 +555,9 @@ int main(int argc, char *argv[]) {
 
   // return 0;
 
-  std::vector<Token> tokens = parse_source_file("main.hash");
-  dump_tokens(tokens);
+  Tokens tokens = parse_source_file("main.hash");
+  // dump_tokens(tokens);
+  parse_tokens(tokens);
 
   return 0;
 }

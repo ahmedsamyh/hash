@@ -91,6 +91,42 @@ struct Arg {
 };
 
 
+// Option --------------------------------------------------
+
+template <typename T>
+struct Option{
+  T value;
+  bool _has_value{false};
+
+  Option(){ }
+
+  Option(T _value){
+    value = _value;
+    _has_value = true;
+  }
+
+  operator bool() { return has_value(); }
+  bool has_value() const { return _has_value; }
+  bool operator!() { return !has_value(); }
+
+
+  T operator=(const T& _v){
+    value = _v;
+    _has_value = true;
+    return value;
+  }
+			   
+  T operator=(T& _v){
+     value = _v;
+    _has_value = true;
+    return value;
+  }
+
+  T& unwrap() { return value; }
+
+};
+
+
 // ch --------------------------------------------------
 namespace ch {
   bool isspace(const char& ch);
