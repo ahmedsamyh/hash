@@ -323,6 +323,10 @@ struct Token{
     Returner,
     Open_curl,
     Close_curl,
+    D_quote,
+    Quote,
+    String,
+    Char
   } type;
   std::string value;
   Loc loc;
@@ -373,6 +377,18 @@ struct Token{
     } break;
     case Type::Close_curl: {
       return "Close_curl";
+    } break;
+    case Type::D_quote: {
+      return "D_quote";
+    } break;
+    case Type::Quote: {
+      return "Quote";
+    } break;
+    case Type::String: {
+      return "String";
+    } break;
+    case Type::Char: {
+      return "Char";
     } break;
     default: {
       UNREACHABLE();
@@ -496,11 +512,61 @@ std::vector<Token> parse_source_file(const std::string& filename){
       } else if (line[0] == '\n'){
 	line = str::lremove(line, 1);
 	col = 1;
+      } else if (line[0] == '"'){
+	// parse opening "
+	token.value = str::lpop(line, 1);
+	token.type = Token::Type::D_quote;
+	token.loc.col = col;
+	line = str::lremove(line, 1);
+	res.push_back(token);
+	col++;
+
+	// parse string
+	token.value = str::lpop_until(line, [](const char& ch) { return ch == '"'; });
+	token.loc.col = col;
+	token.type = Token::Type::String;
+	line = str::lremove(line, token.value.size());
+	res.push_back(token);
+	col += int(token.value.size());
+
+	// parse closing "
+	token.value = str::lpop(line, 1);
+	token.loc.col = col;
+	token.type = Token::Type::D_quote;
+	line = str::lremove(line, 1);
+	res.push_back(token);
+	col++;
+      } else if (line[0] == '\''){
+	// parse opening quote
+	token.value = str::lpop(line, 1);
+	token.loc.col = col;
+	token.type = Token::Type::Quote;
+	line = str::lremove(line, token.value.size());
+	res.push_back(token);
+	col++;
+
+	// parse char
+	token.value = str::lpop(line, 1);
+	token.loc.col = col;
+	token.type = Token::Type::Char;
+	line = str::lremove(line, token.value.size());
+	res.push_back(token);
+	col++;
+
+	// parse closing quote
+	token.value = str::lpop(line, 1);
+	token.loc.col = col;
+	token.type = Token::Type::Quote;
+	line = str::lremove(line, token.value.size());
+	res.push_back(token);
+	col++;
       } else {
 	fprint(std::cerr, "ERROR: Cannot parse `{}`\n", line[0]);
 	exit(1);
       }
-      col += int(token.value.size());
+      if (token.type != Token::Type::D_quote &&
+	  token.type != Token::Type::Quote)
+	col += int(token.value.size());
     }
     row++;  
   }
