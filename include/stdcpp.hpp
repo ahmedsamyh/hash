@@ -55,7 +55,7 @@ template <typename T, typename... Types> void log(T arg, Types... args) {
   std::cout << arg;
   log(args...);
 }
-#define UNREACHABLE() PANIC("Uncreachable\n")
+#define UNREACHABLE() PANIC("Unreachable\n")
 #define UNIMPLEMENTED() PANIC("{}() is unimplemented\n", __func__)
 // TODO: WARNING doesn't properly format
 #define WARNING(...) LOG("WARNING: ", __VA_ARGS__)
