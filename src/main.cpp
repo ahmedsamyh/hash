@@ -1,8 +1,8 @@
 #define STDCPP_IMPLEMENTATION
 #include <stdcpp.hpp>
 #include <stack>
-
-// static std::stack<Value> stack;
+#include <filesystem>
+namespace fs = std::filesystem;
 
 #define compiler_error(str, ...) compiler_error_impl(FMT(str, __VA_ARGS__))
 
@@ -10,8 +10,6 @@ void compiler_error_impl(const std::string& err_msg){
   fprint(std::cerr, "ERROR: {}\n", err_msg);
   exit(1);
 }
-
-
 
 struct Value {
   union Value_as {
@@ -299,24 +297,239 @@ struct Statement {
   std::vector<Expression> expressions;
 };
 
-int main(int argc, char *argv[]) {
+struct Loc{
+  int col{0}, row{0};
+  std::string file_path;
 
-  Value a(Value::Type::Ptr);
-  a.as.Ptr = 3;
+  std::string as_str() const {
+    return FMT("{}:{}:{}", file_path, row, col);
+  }
+};
 
-  Value b(Value::Type::Ptr);
-  b.as.Ptr = 2;
+struct Token{
+  enum Type{
+    Name,
+    Number,
+    Open_paren,
+    Close_paren,
+    Semi_colon,
+    Comma,
+    Minus,
+    Plus,
+    Mult,
+    Div,
+    Mod,
+    Equal,
+    Returner,
+    Open_curl,
+    Close_curl,
+  } type;
+  std::string value;
+  Loc loc;
 
-  Expression expr1(Operator::Type::Sub, a, b);
-
-  Value c = expr1.eval();
-
-  Value d(Value::Type::Ptr);
-  d.as.Ptr = 100;
-
-  Expression expr2(Operator::Type::Sub, c, d);
+  std::string type_as_str(){
+    switch (type){
+    case Type::Name: {
+      return "Name";
+    } break;
+    case Type::Number: {
+      return "Number";
+    } break;
+    case Type::Open_paren: {
+      return "Open_paren";
+    } break;
+    case Type::Close_paren: {
+      return "Close_paren";
+    } break;
+    case Type::Semi_colon: {
+      return "Semi_colon";
+    } break;
+    case Type::Comma: {
+      return "Comma";
+    } break;
+    case Type::Minus: {
+      return "Minus";
+    } break;
+    case Type::Plus: {
+      return "Plus";
+    } break;
+    case Type::Mult: {
+      return "Mult";
+    } break;
+    case Type::Div: {
+      return "Div";
+    } break;
+    case Type::Mod: {
+      return "Mod";
+    } break;
+    case Type::Equal: {
+      return "Equal";
+    } break;
+    case Type::Returner: {
+      return "Returner";
+    } break;
+    case Type::Open_curl: {
+      return "Open_curl";
+    } break;
+    case Type::Close_curl: {
+      return "Close_curl";
+    } break;
+    default: {
+      UNREACHABLE();
+    } break;
+    }
+    return "Invalid Token Type";
+  }
   
-  print("{} = {} = {}\n", expr1.as_str(), expr2.as_str(), expr2.eval().as_str());
+  std::string as_str(){
+    return FMT("{{ value: \"{}\", type: {} }}", value, type_as_str());
+  }
+};
+
+#define FILE_EXT "hash"
+
+std::vector<Token> parse_source_file(const std::string& filename){
+  std::string file_ext = str::rpop_until(filename, '.');
+  if (file_ext != FILE_EXT){
+    fprint(std::cerr, "ERROR: Hash source files must have the extension `{}`!\n", FILE_EXT);
+    exit(1);
+  }
+  std::string file = file::slurp_file(filename);
+  std::vector<Token> res;
+  if (file.empty()){
+    print("WARNING: File {} is empty\n", filename);
+    return res;
+  }
+
+  file = str::trim(file);
+  file = str::remove_char(file, '\r');
+  int col = 1, row = 1;
+
+
+  while (!file.empty()){
+    
+    std::string line = str::lpop_until(file, '\n');
+    line += '\n';
+    file = str::lremove(file, line.size());
+
+    auto isnotalpha = [](const char& ch){
+      return !ch::isalpha(ch);
+    };
+    auto isnotdigit = [](const char& ch){
+      return !ch::isdigit(ch);
+    };
+    
+    while (!line.empty()) {
+      Token token;
+      token.loc.file_path = fs::absolute(fs::path(filename)).string();
+      token.loc.col = col;
+      token.loc.row = row;
+      if (ch::isalpha(line[0])) {
+	token.value = str::lpop_until(line, isnotalpha);
+	token.type = Token::Type::Name;
+	line = str::lremove(line, token.value.size());
+        res.push_back(token);
+      } else if (ch::isdigit(line[0])){
+	token.value = str::lpop_until(line, isnotdigit);
+	token.type = Token::Type::Number;
+	line = str::lremove(line, token.value.size());
+	res.push_back(token);	
+      } else if (line[0] == '(') {
+	token.value = str::lpop(line, 1);
+	token.type = Token::Type::Open_paren;
+	line = str::lremove(line, 1);
+	res.push_back(token);
+      } else if (line[0] == ')') {
+	token.value = str::lpop(line, 1);
+	token.type = Token::Type::Close_paren;
+	line = str::lremove(line, 1);
+	res.push_back(token);
+      } else if (line[0] == ','){
+	token.value = str::lpop(line, 1);
+	token.type = Token::Type::Comma;
+	line = str::lremove(line, 1);
+	res.push_back(token);
+      } else if (line[0] == ';'){
+	token.value = str::lpop(line, 1);
+	token.type = Token::Type::Semi_colon;
+	line = str::lremove(line, 1);
+	res.push_back(token);
+      } else if (line[0] == '-'){
+	token.value = str::lpop(line, 1);
+	if (line.size() > 1 && line[1] == '>'){
+	  token.value += '>';
+	  token.type = Token::Type::Returner;
+	  line = str::lremove(line, 2);
+	} else {
+	  token.type = Token::Type::Minus;
+	  line = str::lremove(line, 1);
+	}
+	res.push_back(token);
+      } else if (line[0] == '+'){
+	token.value = str::lpop(line, 1);
+	token.type = Token::Type::Plus;
+	line = str::lremove(line, 1);
+	res.push_back(token);
+      } else if (line[0] == '*'){
+	token.value = str::lpop(line, 1);
+	token.type = Token::Type::Mult;
+	line = str::lremove(line, 1);
+	res.push_back(token);
+      } else if (line[0] == '{'){
+	token.value = str::lpop(line, 1);
+	token.type = Token::Type::Open_curl;
+	line = str::lremove(line, 1);
+	res.push_back(token);
+      } else if (line[0] == '}'){
+	token.value = str::lpop(line, 1);
+	token.type = Token::Type::Close_curl;
+	line = str::lremove(line, 1);
+	res.push_back(token);
+      } else if (line[0] == '='){
+	token.value = str::lpop(line, 1);
+	token.type = Token::Type::Equal;
+	line = str::lremove(line, 1);
+	res.push_back(token);
+      } else if (line[0] == ' '){
+	line = str::lremove(line, 1);
+	col++;
+      } else if (line[0] == '\n'){
+	line = str::lremove(line, 1);
+	col = 1;
+      } else {
+	fprint(std::cerr, "ERROR: Cannot parse `{}`\n", line[0]);
+	exit(1);
+      }
+      col += int(token.value.size());
+    }
+    row++;  
+  }
+
+  return res;
+}
+
+void parse_tokens(std::vector<Token>& tokens){
+  for (auto& t : tokens){
+    
+  }
+}
+
+void dump_tokens(std::vector<Token>& tokens){
+  print("Tokens:\n");
+  for (auto& t : tokens){
+    print("{}:{}\n", t.loc.as_str(), t.as_str());
+  }
+}
+
+int main(int argc, char *argv[]) {
+  // for (size_t i = 0; i <= 127; ++i){
+  //   print("`{}` {}\n", char(i), (ch::isdigit(char(i)) ? "is digit" : ""));
+  // }
+
+  // return 0;
+
+  std::vector<Token> tokens = parse_source_file("main.hash");
+  dump_tokens(tokens);
 
   return 0;
 }

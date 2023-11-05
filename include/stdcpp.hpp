@@ -91,6 +91,14 @@ struct Arg {
 };
 
 
+// ch --------------------------------------------------
+namespace ch {
+  bool isspace(const char& ch);
+  bool isalpha(const char& ch);
+  bool isalphanum(const char& ch);
+  bool isdigit(const char& ch);
+} // namespace ch
+
 // str --------------------------------------------------
 namespace str {
   
@@ -110,7 +118,9 @@ namespace str {
   std::string lpop(std::string str, size_t n=1);
   std::string rpop(std::string str, size_t n=1);
   std::string lpop_until(std::string str, const char& ch);
+  std::string lpop_until(std::string str, std::function<bool(const char&)> predacate);
   std::string rpop_until(std::string str, const char& ch);
+  std::string rpop_until(std::string str, std::function<bool(const char&)> predacate);
   
 } // namespace str
 
@@ -347,6 +357,15 @@ std::string Arg::pop() {
   return arg;
 }
 
+
+// ch --------------------------------------------------
+namespace ch {
+  bool isspace(const char& ch)	  { return std::isspace(ch);    }
+  bool isalpha(const char& ch)	  { return std::isalpha(ch);    }
+  bool isalphanum(const char& ch) { return (isalpha(ch) || isdigit(ch)); }
+  bool isdigit(const char& ch)	  { return std::isdigit(ch);    }
+} // namespace ch
+// str --------------------------------------------------
 namespace str {
   std::string tolower(std::string s) {
     std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c){ return std::tolower(c); });
@@ -498,6 +517,18 @@ namespace str {
     return str.substr(0, ch_idx);
   }
 
+  std::string lpop_until(std::string str, std::function<bool(const char&)> predacate){
+    size_t i = 0;
+    while (i < str.size()){
+      if (!predacate(str[i])){
+	i++;
+      } else {
+	return str.substr(0, i);
+      }
+    }
+    return str;
+  }
+
   std::string rpop_until(std::string str, const char& ch){
     auto ch_idx = str.find_last_of(ch);
     if (ch_idx == std::string::npos){
@@ -505,6 +536,18 @@ namespace str {
     }
     
     return str.substr(ch_idx+1);
+  }
+
+  std::string rpop_until(std::string str, std::function<bool(const char&)> predacate){
+    size_t i = str.size()-1;
+    while (i >= 0){
+      if (!predacate(str[i])){
+	i--;
+      } else {
+	return str.substr(i+1);
+      }
+    }
+    return str;
   }
   
 } // namespace str
